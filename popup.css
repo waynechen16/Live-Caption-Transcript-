@@ -1,0 +1,75 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  width: 380px;
+  max-height: 560px;
+  display: flex;
+  flex-direction: column;
+  font: 13px/1.5 system-ui, "Microsoft JhengHei", sans-serif;
+  color: #1f2328;
+  background: #fff;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+.dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #9ca3af; display: inline-block;
+}
+.dot.on { background: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,.2); }
+.dot.off { background: #d1d5db; }
+.muted { color: #6b7280; font-size: 12px; }
+.notice {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  background: #fff7e6;
+  border: 1px solid #f0d58c;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #7a5b00;
+}
+.hidden { display: none; }
+.controls {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+}
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #d0d7de;
+  background: #f6f8fa;
+  cursor: pointer;
+}
+button:hover { background: #eef1f4; }
+button.primary { background: #1a7f37; border-color: #1a7f37; color: #fff; font-weight: 600; }
+button.primary:hover { background: #166b2f; }
+button.primary.stop { background: #cf222e; border-color: #cf222e; }
+button.primary.stop:hover { background: #b21f29; }
+button.danger { color: #cf222e; }
+button:disabled { opacity: .5; cursor: default; }
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 12px;
+  min-height: 160px;
+  max-height: 360px;
+}
+.empty { color: #9ca3af; text-align: center; padding: 40px 0; }
+.entry { padding: 4px 0; border-bottom: 1px dashed #f0f0f0; }
+.entry .meta { color: #6b7280; font-size: 11px; }
+.entry .meta .speaker { color: #0969da; font-weight: 600; font-size: 12px; margin-left: 6px; }
+.entry .text { white-space: pre-wrap; word-break: break-word; }
+footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #e5e7eb;
+}
+.spacer { flex: 1; }

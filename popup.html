@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span id="statusDot" class="dot"></span>
+      <span>即時字幕逐字稿</span>
+    </div>
+    <span id="statusText" class="muted">未連線</span>
+  </header>
+
+  <div id="notice" class="notice hidden"></div>
+
+  <div class="controls">
+    <button id="btnToggle" class="primary">開始擷取</button>
+    <button id="btnPick" title="在頁面上點選字幕所在的區塊（Teams / Webex 通常不需要）">框選字幕區域</button>
+  </div>
+
+  <div id="list" class="list">
+    <div class="empty" id="emptyHint">尚無逐字稿。<br />在會議中開啟即時字幕後，按「開始擷取」。</div>
+  </div>
+
+  <footer>
+    <span id="count" class="muted">0 句</span>
+    <div class="spacer"></div>
+    <button id="btnCopy">複製</button>
+    <button id="btnDownload">下載 .txt</button>
+    <button id="btnClear" class="danger">清除</button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
