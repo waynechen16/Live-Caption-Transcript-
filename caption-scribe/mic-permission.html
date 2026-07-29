@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<title>Meeting Scribe — 麥克風授權</title>
+<style>
+  body { font-family: system-ui, "Noto Sans TC", sans-serif; display: flex; align-items: center; justify-content: center; min-height: 90vh; background: #f7f7f5; }
+  .card { background: #fff; border-radius: 14px; padding: 32px 40px; max-width: 460px; box-shadow: 0 4px 24px rgba(0,0,0,.08); text-align: center; }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  p { color: #555; font-size: 14px; line-height: 1.7; }
+  #state { font-size: 15px; font-weight: 600; margin-top: 16px; }
+  #state.ok { color: #16a34a; }
+  #state.err { color: #dc2626; }
+  button { margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 8px; background: #ea580c; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎙️ 允許 Meeting Scribe 使用麥克風</h1>
+    <p>啟用「連同我的麥克風一起記錄」後，您自己的發言也會被辨識、翻譯與錄音。<br>
+    請在瀏覽器跳出的詢問視窗按「<b>允許</b>」。建議開會時<b>戴耳機</b>，迴音消除效果最好。</p>
+    <div id="state">等待授權…</div>
+    <button id="retry" hidden>重新嘗試</button>
+  </div>
+  <script src="mic-permission.js"></script>
+</body>
+</html>

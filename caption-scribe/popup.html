@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 300px; font-family: system-ui, "Noto Sans TC", "Microsoft JhengHei", sans-serif; margin: 0; padding: 14px; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  label { display: block; font-size: 12px; color: #555; margin: 8px 0 2px; }
+  input, select { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 12px; }
+  .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; margin: 4px 0; cursor: pointer; }
+  .check input { width: auto; margin: 0; }
+  .indent { margin-left: 20px; }
+  button { width: 100%; margin-top: 12px; padding: 9px; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  #toggle.start { background: #2563eb; color: #fff; }
+  #toggle.stop { background: #d9534f; color: #fff; }
+  button.ghost { background: #eef2f7; color: #334; font-size: 12px; font-weight: 500; margin-top: 6px; padding: 7px; }
+  button.ghost:hover { background: #e2e8f0; }
+  .row2 { display: flex; gap: 6px; }
+  .row2 button { flex: 1; }
+  #status { font-size: 11px; color: #888; margin-top: 8px; min-height: 14px; }
+  details { margin-top: 10px; }
+  summary { font-size: 12px; cursor: pointer; color: #333; }
+  .hint { font-size: 11px; color: #999; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <h1>Caption Scribe 字幕同步翻譯</h1>
+
+  <label class="check"><input id="translateOn" type="checkbox" checked>啟用翻譯（關閉＝只記錄字幕原文）</label>
+  <label class="check"><input id="recEnabled" type="checkbox">錄音（分頁聲音，MP3）</label>
+  <label class="check indent"><input id="micEnabled" type="checkbox">連同我的麥克風（含自己的發言）</label>
+
+  <button id="toggle" class="start">▶ 開始擷取這個分頁的字幕</button>
+  <button id="showPanel" class="ghost">重新顯示字幕面板</button>
+  <div class="row2">
+    <button id="pick" class="ghost">框選字幕區域</button>
+    <button id="clearPick" class="ghost">清除框選</button>
+  </div>
+  <div id="status"></div>
+
+  <details open>
+    <summary>翻譯設定</summary>
+    <label>翻譯引擎</label>
+    <select id="provider">
+      <option value="deepl">DeepL</option>
+      <option value="gemini">Gemini</option>
+    </select>
+    <label>DeepL API Key</label>
+    <input id="deeplKey" type="password" placeholder="xxxx:fx（Free 方案結尾是 :fx）">
+    <label>Gemini API Key</label>
+    <input id="geminiKey" type="password" placeholder="AIza...（選用 Gemini 時必填）">
+    <div class="hint">來源是頁面上顯示的即時字幕（Teams / Webex / Google Meet 自動偵測，
+    其他網站用「框選字幕區域」；框選過的網站以框選為準）。中英夾雜時只翻英文、中文原樣保留。</div>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

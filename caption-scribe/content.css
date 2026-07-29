@@ -1,0 +1,93 @@
+/* content.css — Caption Scribe 面板（樣式移植自 meeting-scribe） */
+#cs-box {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(780px, 92vw);
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border-radius: 10px;
+  font-family: system-ui, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  backdrop-filter: blur(4px);
+}
+
+#cs-header {
+  font-size: 11px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #bbb;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: grab;
+  touch-action: none;
+}
+#cs-header:active { cursor: grabbing; }
+#cs-buttons { display: flex; gap: 5px; }
+.cs-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 0;
+  color: #ddd;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cs-btn:hover { background: rgba(255, 255, 255, 0.3); color: #fff; }
+
+#cs-history {
+  max-height: 240px;
+  min-height: 76px;
+  overflow-y: scroll;
+  padding: 6px 12px;
+  scrollbar-gutter: stable;
+}
+#cs-history::-webkit-scrollbar { width: 8px; }
+#cs-history::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.08); border-radius: 4px; }
+#cs-history::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 4px; }
+#cs-history::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.55); }
+
+.cs-entry { margin-bottom: 10px; }
+.cs-entry-head { margin-bottom: 3px; display: flex; align-items: center; gap: 8px; }
+.cs-chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #101010;
+  padding: 1px 9px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+.cs-time { font-size: 10px; color: #9a9a9a; }
+.cs-src {
+  font-size: 16px;
+  color: #ffffff;
+  line-height: 1.5;
+}
+/* 尚未定稿（字幕還在逐字修正）時原文半透明 */
+.cs-src.cs-live { opacity: 0.75; }
+.cs-zh {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffd93d;   /* 譯文：黃色 */
+  line-height: 1.55;
+  margin-top: 2px;
+}
+.cs-en {
+  font-size: 14px;
+  color: #bfd7ff;
+  line-height: 1.45;
+}
+
+#cs-status {
+  font-size: 11px;
+  color: #ffe08a;
+  padding: 0 12px 6px;
+  min-height: 14px;
+}
