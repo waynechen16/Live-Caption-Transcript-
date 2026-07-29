@@ -145,23 +145,87 @@
   }
 
   // ================= 講者解析輔助 =================
-  // 「Name: 內容」前綴 → 拆出講者（名字不含句末標點、不超過 30 字）
+  // 出現過的講者名（跨掃描累積；也從歷史記錄還原）——用來辨認「名字塊」
+  const knownSpeakers = new Set();
+
+  // 名字的長相：短、不含任何句中/句末標點
+  function looksLikeName(t) {
+    return !!t && t.length <= 40 && !/[。．.！!？?，,、；;：:…]/.test(t);
+  }
+
+  // 「Name: 內容」前綴 → 拆出講者（名字不含標點、不超過 30 字）
   function splitSpeakerPrefix(text) {
     const m = text.match(/^([^:：]{1,30})[:：]\s*(.+)$/s);
-    if (m && !/[.。！？!?，,]/.test(m[1])) return { speaker: norm(m[1]), text: norm(m[2]) };
+    if (m && looksLikeName(norm(m[1]))) return { speaker: norm(m[1]), text: norm(m[2]) };
     return { speaker: '', text };
   }
-  // 結構式解析：區塊內第一個子元素是短名字、其餘是內容
-  function splitByStructure(el) {
-    const kids = [...el.children].filter((c) => c.tagName !== 'IMG');
+
+  // 結構式解析：區塊內第一個「有文字的」子元素是名字、其餘是內容。
+  // 頭像常是 img 或無文字的 div → 過濾掉；只剩一個有字的子元素（包裝層）就遞迴下探。
+  function splitByStructure(el, depth = 0) {
+    if (!el || !el.children) return null;
+    const kids = [...el.children].filter((c) => c.tagName !== 'IMG' && textOf(c));
     if (kids.length >= 2) {
       const name = textOf(kids[0]);
       const rest = kids.slice(1).map(textOf).filter(Boolean).join(' ');
-      if (rest && name && name.length <= 40 && !/[.。！？!?]$/.test(name)) {
-        return { speaker: name, text: norm(rest) };
-      }
+      if (rest && looksLikeName(name)) return { speaker: name, text: norm(rest) };
+      return null;
     }
+    if (kids.length === 1 && depth < 3) return splitByStructure(kids[0], depth + 1);
     return null;
+  }
+
+  // 「單一字幕項」vs「整個清單」的分辨：
+  // 能結構式解析、且直接子區塊中「名字長相」的不超過一個，才視為單項。
+  // （名字/內容成對排列的清單會有多個名字塊 → 應該繼續下探逐項處理）
+  function isCaptionItem(el) {
+    if (!splitByStructure(el)) return false;
+    const kids = [...el.children].filter((c) => c.tagName !== 'IMG' && textOf(c));
+    const nameish = kids.filter((c) => looksLikeName(textOf(c))).length;
+    return nameish <= 1;
+  }
+
+  // 通用擷取：下探到「一句一項」層級後，逐項解析。
+  // 支援三種型態：
+  //   A. 單項內含名字+文字（結構式，含巢狀包裝層）
+  //   B. 名字塊與內容塊是「兄弟區塊成對出現」（Teams 常見）——
+  //      名字塊短且無標點，且（已知講者 / 在後面重複出現 / 下一塊像句子）
+  //   C. 純文字「Name: 內容」前綴
+  function extractItems(rootEl) {
+    const blocks = findItemBlocks(rootEl);
+    const out = [];
+    for (let i = 0; i < blocks.length; i++) {
+      const el = blocks[i];
+      const st = isCaptionItem(el) ? splitByStructure(el) : null;
+      if (st) {
+        knownSpeakers.add(st.speaker);
+        out.push({ node: el, speaker: st.speaker, text: st.text });
+        continue;
+      }
+      const t = textOf(el);
+      if (!t) continue;
+      // 型態 B：名字塊 + 內容塊 成對
+      if (looksLikeName(t) && i + 1 < blocks.length) {
+        const nxt = blocks[i + 1];
+        const st2 = splitByStructure(nxt);
+        const ntext = st2 ? st2.text : textOf(nxt);
+        const nameEvidence =
+          knownSpeakers.has(t) ||
+          (ntext && !looksLikeName(ntext)) ||
+          blocks.slice(i + 1).some((b) => textOf(b) === t);
+        if (ntext && nameEvidence) {
+          knownSpeakers.add(t);
+          out.push({ node: nxt, speaker: (st2 && st2.speaker) || t, text: ntext });
+          i++;
+          continue;
+        }
+      }
+      // 型態 C
+      const sp = splitSpeakerPrefix(t);
+      if (sp.speaker) knownSpeakers.add(sp.speaker);
+      out.push({ node: el, speaker: sp.speaker, text: sp.text });
+    }
+    return out;
   }
 
   // ================= 各平台字幕擷取 =================
@@ -182,7 +246,15 @@
         }
         if (text) out.push({ node: el, speaker, text });
       }
+      // data-tid 抓得到字幕但全部沒講者名 → 改用通用擷取（結構/成對/前綴）再試一次
+      if (out.length && out.every((i) => !i.speaker)) {
+        const generic = extractItems(renderer);
+        if (generic.length && generic.some((i) => i.speaker)) return generic;
+      }
       if (out.length) return out;
+      // renderer 存在但 data-tid 全失效 → 直接通用擷取
+      const generic = extractItems(renderer);
+      if (generic.length) return generic;
     }
     for (const el of document.querySelectorAll('[data-tid="closed-caption-text"]')) {
       const item = el.closest('li,div') || el;
@@ -260,7 +332,7 @@
     let root = rootEl;
     for (let i = 0; i < 6; i++) {
       const kids = [...root.children].filter((c) => textOf(c));
-      if (kids.length === 1 && !splitByStructure(kids[0])) { root = kids[0]; continue; }
+      if (kids.length === 1 && !isCaptionItem(kids[0])) { root = kids[0]; continue; }
       break;
     }
     const kids = [...root.children].filter((c) => textOf(c));
@@ -272,18 +344,7 @@
     let rootEl = null;
     try { rootEl = document.querySelector(pickedSelector); } catch { return []; }
     if (!rootEl) return [];
-    const out = [];
-    for (const el of findItemBlocks(rootEl)) {
-      // 結構式：頭像(img) + 名字區塊 + 文字區塊 → speaker / transcript 分離
-      const st = splitByStructure(el);
-      if (st) { out.push({ node: el, speaker: st.speaker, text: st.text }); continue; }
-      const t = textOf(el);
-      if (!t) continue;
-      // 純文字式：「名字: 內容」前綴
-      const sp = splitSpeakerPrefix(t);
-      out.push({ node: el, speaker: sp.speaker, text: sp.text });
-    }
-    return out;
+    return extractItems(rootEl);
   }
 
   function collectItems() {
@@ -579,6 +640,7 @@
     for (const s of saved) {
       const e = { ...s, sentText: '', el: null };
       if (e.state === 'sent') e.state = 'live'; // 重載時把送出中的重新排隊
+      if (e.s) knownSpeakers.add(e.s);          // 歷史講者名 → 名字塊辨識依據
       entries.push(e);
       renderEntry(e);
     }
