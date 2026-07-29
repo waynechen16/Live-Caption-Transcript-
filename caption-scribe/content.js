@@ -10,6 +10,10 @@
 
   const HOST = location.hostname;
   const SEL_KEY = 'cs_sel_' + HOST;
+  // 版本號顯示在面板標題，方便確認載入的是新版
+  let VER = '';
+  try { VER = 'v' + chrome.runtime.getManifest().version; } catch {}
+  const TITLE = 'Caption Scribe ' + VER;
   const FINAL_IDLE_MS = 1800;  // 字幕條目多久沒變視為定稿 → 送翻譯
   const CHECK_MS = 500;
 
@@ -26,7 +30,7 @@
   box.id = 'cs-box';
   box.innerHTML = `
     <div id="cs-header">
-      <span id="cs-title">Caption Scribe（未擷取）</span>
+      <span id="cs-title"></span>
       <span id="cs-buttons">
         <button class="cs-btn" id="cs-save-src" title="下載原文逐字稿">原文</button>
         <button class="cs-btn" id="cs-save-zh" title="下載中文">中文</button>
@@ -45,6 +49,7 @@
   const historyEl = box.querySelector('#cs-history');
   const statusEl = box.querySelector('#cs-status');
   const titleEl = box.querySelector('#cs-title');
+  titleEl.textContent = TITLE + '（未擷取）';
   const audioBtn = box.querySelector('#cs-save-audio');
   box.querySelector('#cs-close').addEventListener('click', () => { box.style.display = 'none'; });
 
@@ -462,7 +467,7 @@
     if (capturing) return;
     capturing = true;
     box.style.display = '';
-    titleEl.textContent = translateOn ? 'Caption Scribe 記錄中…' : 'Caption Scribe 記錄中（翻譯關閉）';
+    titleEl.textContent = TITLE + (translateOn ? ' 記錄中…' : ' 記錄中（翻譯關閉）');
     observer = new MutationObserver(queueScan);
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     scanTimer = setInterval(() => { if (capturing) scan(); }, 700);
@@ -486,7 +491,7 @@
     finalizeCheck();
     dirtyStore = true;
     storeSnapshot();
-    titleEl.textContent = '已停止（可匯出）';
+    titleEl.textContent = TITLE + ' 已停止（可匯出）';
   }
 
   function resetAll() {
@@ -652,7 +657,7 @@
     if (area !== 'local') return;
     if (changes.cs_translate) {
       translateOn = changes.cs_translate.newValue !== false;
-      if (capturing) titleEl.textContent = translateOn ? 'Caption Scribe 記錄中…' : 'Caption Scribe 記錄中（翻譯關閉）';
+      if (capturing) titleEl.textContent = TITLE + (translateOn ? ' 記錄中…' : ' 記錄中（翻譯關閉）');
     }
     if (changes.cs_recActive) applyRecActive(!!changes.cs_recActive.newValue);
   });

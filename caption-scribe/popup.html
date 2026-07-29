@@ -5,6 +5,7 @@
 <style>
   body { width: 300px; font-family: system-ui, "Noto Sans TC", "Microsoft JhengHei", sans-serif; margin: 0; padding: 14px; }
   h1 { font-size: 15px; margin: 0 0 10px; }
+  .ver { font-size: 11px; font-weight: 400; color: #999; margin-left: 6px; }
   label { display: block; font-size: 12px; color: #555; margin: 8px 0 2px; }
   input, select { width: 100%; box-sizing: border-box; padding: 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 12px; }
   .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #333; margin: 4px 0; cursor: pointer; }
@@ -24,7 +25,7 @@
 </style>
 </head>
 <body>
-  <h1>Caption Scribe 字幕同步翻譯</h1>
+  <h1>Caption Scribe 字幕同步翻譯<span id="ver" class="ver"></span></h1>
 
   <label class="check"><input id="translateOn" type="checkbox" checked>啟用翻譯（關閉＝只記錄字幕原文）</label>
   <label class="check"><input id="recEnabled" type="checkbox">錄音（分頁聲音，MP3）</label>

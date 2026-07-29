@@ -60,6 +60,7 @@ async function ensureContent() {
 }
 
 async function init() {
+  $('ver').textContent = 'v' + chrome.runtime.getManifest().version;
   const saved = await chrome.storage.local.get([...FIELDS, 'cs_translate', 'recEnabled', 'micEnabled']);
   for (const f of FIELDS) if (saved[f]) $(f).value = saved[f];
   $('translateOn').checked = saved.cs_translate !== false;   // 預設開
