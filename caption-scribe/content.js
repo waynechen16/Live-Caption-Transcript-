@@ -144,6 +144,8 @@
     if (srcEl.textContent !== e.x) srcEl.textContent = e.x;
     srcEl.classList.toggle('cs-live', translateOn && e.state !== 'done');
     setTransLine(e.el, 'cs-zh', e.zh, e.x);
+    const zhDiv = e.el.querySelector('.cs-zh');
+    if (zhDiv) zhDiv.classList.toggle('cs-tentative', e.state !== 'done');  // 暫定譯文半透明
     if (stick) historyEl.scrollTop = historyEl.scrollHeight;
   }
 
@@ -370,14 +372,24 @@
     return extractItems(rootEl);
   }
 
-  function collectItems() {
-    // 使用者手動框選的區域永遠優先；沒框選才用各平台預設位置
-    const picked = pickedItems();
-    if (picked.length) return picked;
+  function platformItems() {
     if (HOST.includes('teams')) return teamsItems();
     if (HOST.includes('webex')) return webexItems();
     if (HOST.includes('meet.google')) return meetItems();
     return [];
+  }
+
+  function collectItems() {
+    // 手動框選優先；但若框選解析不到任何講者、平台內建偵測解析得到 → 自動改用內建結果
+    const picked = pickedItems();
+    if (picked.length) {
+      if (picked.every((i) => !i.speaker)) {
+        const platform = platformItems();
+        if (platform.length && platform.some((i) => i.speaker)) return platform;
+      }
+      return picked;
+    }
+    return platformItems();
   }
 
   // ================= 去重、聚合與定稿 =================
@@ -428,34 +440,64 @@
     }
   }
 
-  // 定稿檢查：live 且閒置超過 FINAL_IDLE_MS → 送翻譯（翻譯關閉時直接定稿）
+  // ================= 預先翻譯 + 定稿 =================
+  // 不等斷句：字幕還在變動時就先翻（每個條目最快 PRETRANS_MS 送一次），
+  // 畫面先顯示「暫定譯文」（半透明）；文字停止變動 FINAL_IDLE_MS 後，
+  // 若最後一次譯文已對應最終文字就直接轉正（不再重翻一次，省 API 額度），
+  // 否則補送最後一次翻譯。
+  const PRETRANS_MS = 1000;
+
+  function requestTranslate(e) {
+    if (e.inflight) return;
+    e.inflight = true;
+    const snapshot = e.x;
+    e.sentText = snapshot;
+    e.lastReq = Date.now();
+    chrome.runtime.sendMessage({ type: 'TRANSLATE', text: snapshot })
+      .then((r) => {
+        const cur = entryById(e.id);
+        if (cur) {
+          cur.inflight = false;
+          cur.zh = r?.zh || '';
+          cur.zhFor = snapshot;   // 這份譯文對應的原文快照
+          // 原文已停止變動（或已停止擷取）且譯文對應最終文字 → 定稿
+          if (cur.zhFor === cur.x && (!capturing || Date.now() - cur.lastChange >= FINAL_IDLE_MS)) {
+            cur.state = 'done';
+          }
+          dirtyStore = true;
+          renderEntry(cur);
+        }
+        e.inflight = false;
+      })
+      .catch(() => { e.inflight = false; });
+  }
+
   function finalizeCheck() {
     const now = Date.now();
     for (const e of entries) {
-      if (e.state !== 'live') continue;
-      if (now - e.lastChange < FINAL_IDLE_MS) continue;
+      if (e.state === 'done') continue;
+      const idle = now - e.lastChange;
       if (!translateOn) {
-        e.state = 'done';
-        dirtyStore = true;
-        renderEntry(e);
+        if (idle >= FINAL_IDLE_MS) { e.state = 'done'; dirtyStore = true; renderEntry(e); }
         continue;
       }
-      e.state = 'sent';
-      e.sentText = e.x;
-      chrome.runtime.sendMessage({ type: 'TRANSLATE', text: e.x })
-        .then((r) => {
-          const cur = entryById(e.id);
-          if (!cur) return;
-          if (cur.x !== cur.sentText) { cur.state = 'live'; return; } // 原文又變了 → 重翻
-          cur.zh = r?.zh || '';
-          cur.state = 'done';
+      // 預先翻譯：文字有變、且距上次送出 ≥ PRETRANS_MS（首次立即送）
+      if (e.x !== e.sentText && !e.inflight && now - (e.lastReq || 0) >= PRETRANS_MS) {
+        requestTranslate(e);
+        continue;
+      }
+      // 定稿判斷
+      if (idle >= FINAL_IDLE_MS) {
+        if (e.zhFor === e.x) {
+          e.state = 'done';
           dirtyStore = true;
-          renderEntry(cur);
-        })
-        .catch(() => {
-          const cur = entryById(e.id);
-          if (cur && cur.state === 'sent') cur.state = 'live'; // 稍後重試
-        });
+          renderEntry(e);
+        } else if (!e.inflight && now - (e.lastReq || 0) >= PRETRANS_MS) {
+          // 上次請求失敗或落後 → 補送（同樣受節流限制，避免失敗時連環重送）
+          e.sentText = null;
+          requestTranslate(e);
+        }
+      }
     }
   }
 
@@ -501,9 +543,9 @@
     clearInterval(scanTimer);
     clearInterval(finalTimer);
     clearInterval(storeTimer);
-    // 停止時把尚未定稿的條目全部立即定稿（送翻譯或直接完成）
+    // 停止時把尚未定稿的條目全部立即定稿（補送翻譯或直接完成）
     for (const e of entries) {
-      if (e.state === 'live') e.lastChange = 0;
+      if (e.state !== 'done') { e.lastChange = 0; e.lastReq = 0; }
     }
     finalizeCheck();
     dirtyStore = true;
@@ -659,6 +701,7 @@
     for (const s of saved) {
       const e = { ...s, sentText: '', el: null };
       if (e.state === 'sent') e.state = 'live'; // 重載時把送出中的重新排隊
+      if (e.state === 'done') e.zhFor = e.x;    // 已定稿的譯文對應最終原文，避免重翻
       if (e.s) knownSpeakers.add(e.s);          // 歷史講者名 → 名字塊辨識依據
       entries.push(e);
       renderEntry(e);
