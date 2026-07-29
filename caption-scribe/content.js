@@ -253,18 +253,33 @@
     return out;
   }
 
+  // 從使用者框選的元素往下探，找出「一句一項」的字幕項層級。
+  // 使用者常會框到整個字幕外框（下面還有捲動容器、清單等包裝層）：
+  // 只要這一層只有一個「有文字的」子元素、而且它還不是字幕項本身，就繼續往下走。
+  function findItemBlocks(rootEl) {
+    let root = rootEl;
+    for (let i = 0; i < 6; i++) {
+      const kids = [...root.children].filter((c) => textOf(c));
+      if (kids.length === 1 && !splitByStructure(kids[0])) { root = kids[0]; continue; }
+      break;
+    }
+    const kids = [...root.children].filter((c) => textOf(c));
+    return kids.length ? kids : [root];
+  }
+
   function pickedItems() {
     if (!pickedSelector) return [];
     let rootEl = null;
     try { rootEl = document.querySelector(pickedSelector); } catch { return []; }
     if (!rootEl) return [];
-    const kids = rootEl.children && rootEl.children.length ? [...rootEl.children] : [rootEl];
     const out = [];
-    for (const el of kids) {
+    for (const el of findItemBlocks(rootEl)) {
+      // 結構式：頭像(img) + 名字區塊 + 文字區塊 → speaker / transcript 分離
       const st = splitByStructure(el);
       if (st) { out.push({ node: el, speaker: st.speaker, text: st.text }); continue; }
       const t = textOf(el);
       if (!t) continue;
+      // 純文字式：「名字: 內容」前綴
       const sp = splitSpeakerPrefix(t);
       out.push({ node: el, speaker: sp.speaker, text: sp.text });
     }
