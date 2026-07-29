@@ -34,7 +34,6 @@
       <span id="cs-buttons">
         <button class="cs-btn" id="cs-save-src" title="下載原文逐字稿">原文</button>
         <button class="cs-btn" id="cs-save-zh" title="下載中文">中文</button>
-        <button class="cs-btn" id="cs-save-en" title="下載英文">英文</button>
         <button class="cs-btn" id="cs-save-md" title="下載 Markdown 會議記錄">MD</button>
         <button class="cs-btn" id="cs-save-audio" title="下載錄音 (MP3)" hidden>音檔</button>
         <button class="cs-btn" id="cs-clear" title="清除記錄">清除</button>
@@ -145,7 +144,6 @@
     if (srcEl.textContent !== e.x) srcEl.textContent = e.x;
     srcEl.classList.toggle('cs-live', translateOn && e.state !== 'done');
     setTransLine(e.el, 'cs-zh', e.zh, e.x);
-    setTransLine(e.el, 'cs-en', e.en, e.x);
     if (stick) historyEl.scrollTop = historyEl.scrollHeight;
   }
 
@@ -236,6 +234,26 @@
   // ================= 各平台字幕擷取 =================
   function teamsItems() {
     const out = [];
+    // 新版 Teams（實測 2026-07 DOM）：沒有 closed-captions-renderer 外層 data-tid。
+    // 每句是一個 .fui-ChatMessageCompact__body，名字(author)與文字(closed-caption-text)
+    // 在不同的兄弟分支 → 從字幕文字「往上走」找到同時包含 author 的訊息容器。
+    for (const el of document.querySelectorAll('[data-tid="closed-caption-text"]')) {
+      const text = textOf(el);
+      if (!text) continue;
+      let item = el.parentElement || el;   // 找不到 author 時的近端容器
+      let author = null;
+      let cur = el.parentElement;
+      for (let i = 0; i < 6 && cur; i++, cur = cur.parentElement) {
+        const a = cur.querySelector('[data-tid="author"]');
+        if (a) {
+          // 若這一層已含多句字幕，代表走過頭（到清單層了）→ 放棄，避免抓錯人
+          if (cur.querySelectorAll('[data-tid="closed-caption-text"]').length > 1) break;
+          item = cur; author = a; break;
+        }
+      }
+      out.push({ node: item, speaker: author ? textOf(author) : '', text });
+    }
+    if (out.length) return out;
     const renderer = document.querySelector('[data-tid="closed-captions-renderer"]');
     if (renderer) {
       let items = renderer.querySelectorAll('.fui-ChatMessageCompact');
@@ -430,7 +448,6 @@
           if (!cur) return;
           if (cur.x !== cur.sentText) { cur.state = 'live'; return; } // 原文又變了 → 重翻
           cur.zh = r?.zh || '';
-          cur.en = r?.en || '';
           cur.state = 'done';
           dirtyStore = true;
           renderEntry(cur);
@@ -528,16 +545,13 @@
   box.querySelector('#cs-save-zh').addEventListener('click', () => {
     download(`caption-zh-${fileStamp()}.txt`, entries.map((e) => line(e, 'zh')).join('\n'));
   });
-  box.querySelector('#cs-save-en').addEventListener('click', () => {
-    download(`caption-en-${fileStamp()}.txt`, entries.map((e) => line(e, 'en')).join('\n'));
-  });
   box.querySelector('#cs-save-md').addEventListener('click', () => {
     const d = new Date();
     const md = [
       `# 會議記錄 ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       '',
       ...entries.map((e) =>
-        `**[${timestamp(e.t)}] ${e.s || '字幕'}**\n> ${e.x}\n> 中：${e.zh}\n> EN: ${e.en}\n`)
+        `**[${timestamp(e.t)}] ${e.s || '字幕'}**\n> ${e.x}\n> 中：${e.zh}\n`)
     ].join('\n');
     download(`caption-notes-${fileStamp()}.md`, md);
   });
@@ -700,6 +714,37 @@
         resetAll();
         sendResponse({ ok: true });
         break;
+      case 'dumpDom': {
+        // 除錯用：把可能的字幕容器結構匯出成 HTML 檔（給開發者調解析規則）
+        const parts = [];
+        const add = (label, el) => {
+          if (!el) return;
+          let html = el.outerHTML || '';
+          if (html.length > 400000) html = html.slice(0, 400000) + '\n<!-- ...截斷... -->';
+          parts.push(`\n\n<!-- ========== ${label} ========== -->\n` + html);
+        };
+        try {
+          if (pickedSelector) add('手動框選 ' + pickedSelector, document.querySelector(pickedSelector));
+          add('Teams closed-captions-renderer', document.querySelector('[data-tid="closed-captions-renderer"]'));
+          const ccText = document.querySelector('[data-tid="closed-caption-text"]');
+          if (ccText) add('Teams closed-caption-text 往上三層', ccText.parentElement?.parentElement?.parentElement || ccText);
+          for (const sel of WEBEX_SELS) {
+            const el = document.querySelector(sel);
+            if (el) { add('Webex ' + sel + ' 往上兩層', el.parentElement?.parentElement || el); break; }
+          }
+          for (const r of document.querySelectorAll('div[role="region"][aria-label]')) {
+            const label = r.getAttribute('aria-label') || '';
+            if (/caption|字幕/i.test(label)) { add('Meet region: ' + label, r); break; }
+          }
+        } catch (err) {
+          parts.push('<!-- dump error: ' + err.message + ' -->');
+        }
+        if (!parts.length) parts.push('<!-- 找不到任何已知的字幕容器；請先手動框選字幕區域再匯出一次 -->');
+        const head = `<!-- Caption Scribe ${VER} DOM dump | ${location.hostname} | ${new Date().toISOString()} -->`;
+        download(`caption-dom-dump-${fileStamp()}.html`, head + parts.join(''));
+        sendResponse({ ok: true, found: parts.length });
+        break;
+      }
       default:
         sendResponse({ ok: false });
     }

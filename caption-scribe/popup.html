@@ -37,6 +37,7 @@
     <button id="pick" class="ghost">框選字幕區域</button>
     <button id="clearPick" class="ghost">清除框選</button>
   </div>
+  <button id="dumpDom" class="ghost">匯出字幕結構（除錯用，會下載 HTML 檔）</button>
   <div id="status"></div>
 
   <details open>
@@ -51,7 +52,8 @@
     <label>Gemini API Key</label>
     <input id="geminiKey" type="password" placeholder="AIza...（選用 Gemini 時必填）">
     <div class="hint">來源是頁面上顯示的即時字幕（Teams / Webex / Google Meet 自動偵測，
-    其他網站用「框選字幕區域」；框選過的網站以框選為準）。中英夾雜時只翻英文、中文原樣保留。</div>
+    其他網站用「框選字幕區域」；框選過的網站以框選為準）。只輸出繁中譯文：
+    純中文句不翻譯直接顯示，中英夾雜時只翻英文、中文原樣保留。</div>
   </details>
   <script src="popup.js"></script>
 </body>

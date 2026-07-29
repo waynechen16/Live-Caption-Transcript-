@@ -127,4 +127,9 @@ $('clearPick').addEventListener('click', async () => {
   status.textContent = res?.ok ? '已清除框選，改用預設字幕位置' : '清除失敗';
 });
 
+$('dumpDom').addEventListener('click', async () => {
+  const res = await send('dumpDom');
+  status.textContent = res?.ok ? '已下載字幕結構檔，請把該 HTML 檔提供給開發者' : '匯出失敗';
+});
+
 init();

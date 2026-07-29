@@ -13,7 +13,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'TRANSLATE') {
     translate(String(msg.text || ''))
       .then((r) => sendResponse(r))
-      .catch(() => sendResponse({ zh: '(翻譯失敗)', en: '(翻譯失敗)' }));
+      .catch(() => sendResponse({ zh: '(翻譯失敗)' }));
     return true; // async sendResponse
   }
 
@@ -34,21 +34,16 @@ async function getCfg() {
 }
 
 async function translate(text) {
-  if (!text.trim()) return { zh: '', en: '' };
-  const cfg = await getCfg();
-  if ((cfg.provider || 'deepl') === 'gemini') return geminiBoth(text, cfg);
-
+  // 只輸出繁中譯文（不做中→英）。
+  // 純中文句直接原樣回傳（不呼叫 API）；含英文的句子才翻譯，
+  // 中英夾雜時只翻英文片段、中文片段原樣保留。
+  if (!text.trim()) return { zh: '' };
   const hasCJK = /[㐀-鿿豈-﫿]/.test(text);
   const hasLatin = /[A-Za-z]/.test(text);
-  const needZh = !(hasCJK && !hasLatin); // 非純中文 → 需要中譯
-  const needEn = !(hasLatin && !hasCJK); // 非純英文 → 需要英譯
-  // 中英夾雜：DeepL 以 ZH-HANT 為目標時會翻譯英文片段、中文片段原樣輸出，
-  // 符合「只翻英文、中文直接顯示」的行為
-  const [zh, en] = await Promise.all([
-    needZh ? deepl(text, 'ZH-HANT', cfg) : Promise.resolve(text),
-    needEn ? deepl(text, 'EN-US', cfg) : Promise.resolve(text)
-  ]);
-  return { zh, en };
+  if (hasCJK && !hasLatin) return { zh: text };   // 純中文 → 不翻
+  const cfg = await getCfg();
+  if ((cfg.provider || 'deepl') === 'gemini') return geminiZh(text, cfg);
+  return { zh: await deepl(text, 'ZH-HANT', cfg) };
 }
 
 async function deepl(text, target, cfg) {
@@ -73,19 +68,18 @@ async function deepl(text, target, cfg) {
   }
 }
 
-async function geminiBoth(text, cfg) {
-  if (!cfg.geminiKey) return { zh: '(未設定 Gemini key)', en: '(未設定 Gemini key)' };
+async function geminiZh(text, cfg) {
+  if (!cfg.geminiKey) return { zh: '(未設定 Gemini key)' };
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=' + cfg.geminiKey;
-  // 中英夾雜規則（依需求調整）：zh 只翻譯英文片段、中文片段一字不動保留。
+  // 中英夾雜規則：只翻譯英文片段、中文片段一字不動保留。
   // 例：「這是 Apple.」→ zh:「這是蘋果.」
   const prompt =
     'You are a meeting interpreter. The utterance below may be Chinese, English, or mixed. ' +
-    'Return ONLY JSON: {"zh":"...","en":"..."}. Rules for "zh": ' +
+    'Return ONLY JSON: {"zh":"..."}. Rules: ' +
     'translate the English portions into Traditional Chinese, but keep every existing Chinese ' +
     'portion EXACTLY as written (do not rephrase it); the result reads as one natural sentence. ' +
     'If the utterance is pure English, "zh" is its full Traditional Chinese translation. ' +
-    'If pure Chinese, copy it as-is. Rules for "en": the full English version of the utterance; ' +
-    'if the utterance is pure English, copy it as-is.\n\nUtterance: ' + text;
+    'If pure Chinese, copy it as-is.\n\nUtterance: ' + text;
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -95,13 +89,13 @@ async function geminiBoth(text, cfg) {
         generationConfig: { responseMimeType: 'application/json', temperature: 0.1 }
       })
     });
-    if (!res.ok) return { zh: `(翻譯失敗 ${res.status})`, en: `(翻譯失敗 ${res.status})` };
+    if (!res.ok) return { zh: `(翻譯失敗 ${res.status})` };
     const data = await res.json();
     const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const parsed = JSON.parse(raw);
-    return { zh: parsed.zh || '', en: parsed.en || '' };
+    return { zh: parsed.zh || '' };
   } catch {
-    return { zh: '(翻譯連線失敗)', en: '(翻譯連線失敗)' };
+    return { zh: '(翻譯連線失敗)' };
   }
 }
 
