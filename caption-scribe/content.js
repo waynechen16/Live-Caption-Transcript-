@@ -612,8 +612,11 @@
     const md = [
       `# 會議記錄 ${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       '',
-      ...entries.map((e) =>
-        `**[${timestamp(e.t)}] ${e.s || '字幕'}**\n> ${e.x}\n> 中：${e.zh}\n`)
+      ...entries.map((e) => {
+        // 譯文直接列出（不加「中：」前綴）；譯文為空或與原文相同時省略，避免重複
+        const zh = e.zh && e.zh.trim() !== e.x.trim() ? `\n> ${e.zh}` : '';
+        return `**[${timestamp(e.t)}] ${e.s || '字幕'}**\n> ${e.x}${zh}\n`;
+      })
     ].join('\n');
     download(`caption-notes-${fileStamp()}.md`, md);
   });
