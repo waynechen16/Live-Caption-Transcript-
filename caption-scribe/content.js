@@ -372,6 +372,15 @@
     return extractItems(rootEl);
   }
 
+  let lastSource = '';   // 診斷顯示：目前生效的解析來源
+
+  function platformLabel() {
+    if (HOST.includes('teams')) return 'Teams 內建';
+    if (HOST.includes('webex')) return 'Webex 內建';
+    if (HOST.includes('meet.google')) return 'Meet 內建';
+    return '通用';
+  }
+
   function platformItems() {
     if (HOST.includes('teams')) return teamsItems();
     if (HOST.includes('webex')) return webexItems();
@@ -385,11 +394,17 @@
     if (picked.length) {
       if (picked.every((i) => !i.speaker)) {
         const platform = platformItems();
-        if (platform.length && platform.some((i) => i.speaker)) return platform;
+        if (platform.length && platform.some((i) => i.speaker)) {
+          lastSource = platformLabel() + '（自動接手）';
+          return platform;
+        }
       }
+      lastSource = '手動框選';
       return picked;
     }
-    return platformItems();
+    const p = platformItems();
+    if (p.length) lastSource = platformLabel();
+    return p;
   }
 
   // ================= 去重、聚合與定稿 =================
@@ -409,6 +424,11 @@
   function scan() {
     let items;
     try { items = collectItems(); } catch { return; }
+    // 即時診斷：來源解析器 / 講者是否解析成功 / 累計句數
+    if (capturing && items.length) {
+      const spkOk = items.some((i) => i.speaker) || entries.some((e) => e.s);
+      setStatus(`來源：${lastSource}｜講者：${spkOk ? '✔ 有解析到' : '— 未解析到'}｜已擷取 ${entries.length} 句`);
+    }
     const now = Date.now();
     for (const it of items) {
       const knownId = nodeMap.get(it.node);
