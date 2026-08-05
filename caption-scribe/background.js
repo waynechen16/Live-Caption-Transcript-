@@ -34,16 +34,65 @@ async function getCfg() {
 }
 
 async function translate(text) {
-  // 只輸出繁中譯文（不做中→英）。
-  // 純中文句直接原樣回傳（不呼叫 API）；含英文的句子才翻譯，
-  // 中英夾雜時只翻英文片段、中文片段原樣保留。
+  // 只輸出繁中譯文（不做中→英）。規則：
+  //   純中文 → 不翻譯、不呼叫 API（zh = 原文）
+  //   純英文 → 整句翻成繁中
+  //   中英夾雜 → 中文片段一字不動，只把英文片段換成中文
+  //     例：「這是一本book，放在桌上。」→「這是一本書，放在桌上。」
   if (!text.trim()) return { zh: '' };
   const hasCJK = /[㐀-鿿豈-﫿]/.test(text);
   const hasLatin = /[A-Za-z]/.test(text);
   if (hasCJK && !hasLatin) return { zh: text };   // 純中文 → 不翻
   const cfg = await getCfg();
   if ((cfg.provider || 'deepl') === 'gemini') return geminiZh(text, cfg);
-  return { zh: await deepl(text, 'ZH-HANT', cfg) };
+  if (!hasCJK) return { zh: await deepl(text, 'ZH-HANT', cfg) };        // 純英文 → 整句翻
+  return { zh: await deeplMixed(text, cfg) };                           // 夾雜 → 只翻英文片段
+}
+
+// 中英夾雜（DeepL）：抽出英文片段逐段翻譯，中文片段原樣拼回。
+// 把整句當 context 傳給 DeepL，讓短片段也能依上下文選對詞義。
+async function deeplMixed(text, cfg) {
+  const chunks = [];
+  const re = /[A-Za-z][A-Za-z0-9'’\- ]*[A-Za-z0-9]|[A-Za-z]/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    chunks.push({ start: m.index, end: m.index + m[0].length, src: m[0] });
+  }
+  if (!chunks.length) return text;
+  const translated = await deeplBatch(chunks.map((c) => c.src), 'ZH-HANT', cfg, text);
+  if (!translated) return '(翻譯連線失敗)';
+  let out = '';
+  let pos = 0;
+  chunks.forEach((c, i) => {
+    out += text.slice(pos, c.start) + (translated[i] || c.src);
+    pos = c.end;
+  });
+  out += text.slice(pos);
+  return out;
+}
+
+async function deeplBatch(texts, target, cfg, context) {
+  if (!cfg.deeplKey) return null;
+  const endpoint = cfg.deeplKey.endsWith(':fx')
+    ? 'https://api-free.deepl.com/v2/translate'
+    : 'https://api.deepl.com/v2/translate';
+  try {
+    const body = { text: texts, target_lang: target };
+    if (context) body.context = context;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `DeepL-Auth-Key ${cfg.deeplKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return texts.map((t, i) => data.translations?.[i]?.text || t);
+  } catch {
+    return null;
+  }
 }
 
 async function deepl(text, target, cfg) {
