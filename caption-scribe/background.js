@@ -60,6 +60,7 @@ async function deeplMixed(text, cfg) {
   }
   if (!chunks.length) return text;
   const translated = await deeplBatch(chunks.map((c) => c.src), 'ZH-HANT', cfg, text);
+  if (typeof translated === 'string') return translated;   // 錯誤訊息
   if (!translated) return '(翻譯連線失敗)';
   let out = '';
   let pos = 0;
@@ -87,7 +88,8 @@ async function deeplBatch(texts, target, cfg, context) {
       },
       body: JSON.stringify(body)
     });
-    if (!res.ok) return null;
+    if (res.status === 456) return '(DeepL 本月免費額度已用完)';
+    if (!res.ok) return `(翻譯失敗 ${res.status})`;
     const data = await res.json();
     return texts.map((t, i) => data.translations?.[i]?.text || t);
   } catch {
@@ -109,6 +111,7 @@ async function deepl(text, target, cfg) {
       },
       body: JSON.stringify({ text: [text], target_lang: target })
     });
+    if (res.status === 456) return '(DeepL 本月免費額度已用完)';
     if (!res.ok) return `(翻譯失敗 ${res.status})`;
     const data = await res.json();
     return data.translations?.[0]?.text || '';

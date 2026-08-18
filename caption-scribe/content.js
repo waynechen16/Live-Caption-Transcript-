@@ -41,11 +41,13 @@
       </span>
     </div>
     <div id="cs-history"></div>
+    <div id="cs-interim"></div>
     <div id="cs-status"></div>
   `;
   document.documentElement.appendChild(box);
 
   const historyEl = box.querySelector('#cs-history');
+  const interimEl = box.querySelector('#cs-interim');
   const statusEl = box.querySelector('#cs-status');
   const titleEl = box.querySelector('#cs-title');
   titleEl.textContent = TITLE + '（未擷取）';
@@ -116,6 +118,9 @@
 
   function renderEntry(e) {
     const stick = nearBottom();
+    // 進行中的條目放在底部固定的「即時區」，定稿後才移入歷史區——
+    // 這樣逐字修正只在保留空間內變動，歷史列表不會跳動
+    const parent = e.inHistory ? historyEl : interimEl;
     if (!e.el) {
       const el = document.createElement('div');
       el.className = 'cs-entry';
@@ -132,8 +137,10 @@
       const src = document.createElement('div');
       src.className = 'cs-src';
       el.append(head, src);
-      historyEl.appendChild(el);
+      parent.appendChild(el);
       e.el = el;
+    } else if (e.el.parentElement !== parent) {
+      parent.appendChild(e.el);   // 定稿 → 從即時區搬進歷史區
     }
     const chipEl = e.el.querySelector('.cs-chip');
     if (e.s && chipEl.textContent !== e.s) {
@@ -448,9 +455,11 @@
         nodeMap.set(it.node, last.id);           // 漸進式修正 → 合併
         if (it.text.length >= last.x.length) touch(last, it.text, it.speaker);
       } else {
+        promoteLiveEntries();   // 新的一句開始 → 前面的句子視為講完，移入歷史區
         const e = {
           id: nextId++, t: now, s: it.speaker || '', x: it.text,
-          zh: '', en: '', state: 'live', lastChange: now, sentText: '', el: null
+          zh: '', en: '', state: 'live', lastChange: now, sentText: '', el: null,
+          inHistory: false
         };
         entries.push(e);
         nodeMap.set(it.node, e.id);
@@ -466,6 +475,13 @@
   // 若最後一次譯文已對應最終文字就直接轉正（不再重翻一次，省 API 額度），
   // 否則補送最後一次翻譯。
   const PRETRANS_MS = 1000;
+
+  // 把尚在即時區的條目移入歷史區（新句開始或閒置定稿時呼叫）
+  function promoteLiveEntries() {
+    for (const e of entries) {
+      if (!e.inHistory) { e.inHistory = true; renderEntry(e); }
+    }
+  }
 
   function requestTranslate(e) {
     if (e.inflight) return;
@@ -483,6 +499,7 @@
           // 原文已停止變動（或已停止擷取）且譯文對應最終文字 → 定稿
           if (cur.zhFor === cur.x && (!capturing || Date.now() - cur.lastChange >= FINAL_IDLE_MS)) {
             cur.state = 'done';
+            cur.inHistory = true;
           }
           dirtyStore = true;
           renderEntry(cur);
@@ -497,6 +514,8 @@
     for (const e of entries) {
       if (e.state === 'done') continue;
       const idle = now - e.lastChange;
+      // 文字已停止變動 → 先移入歷史區（譯文可稍後補入，不影響版面穩定）
+      if (idle >= FINAL_IDLE_MS && !e.inHistory) { e.inHistory = true; renderEntry(e); }
       if (!translateOn) {
         if (idle >= FINAL_IDLE_MS) { e.state = 'done'; dirtyStore = true; renderEntry(e); }
         continue;
@@ -567,6 +586,7 @@
     for (const e of entries) {
       if (e.state !== 'done') { e.lastChange = 0; e.lastReq = 0; }
     }
+    promoteLiveEntries();
     finalizeCheck();
     dirtyStore = true;
     storeSnapshot();
@@ -578,6 +598,7 @@
     nextId = 1;
     nodeMap = new WeakMap();
     historyEl.innerHTML = '';
+    interimEl.innerHTML = '';
     dirtyStore = true;
     storeSnapshot();
     chrome.runtime.sendMessage({ type: 'AUDIO_RESET' }).catch(() => {});
@@ -722,7 +743,7 @@
     applyRecActive(!!res.cs_recActive);
     const saved = Array.isArray(res.cs_entries) ? res.cs_entries : [];
     for (const s of saved) {
-      const e = { ...s, sentText: '', el: null };
+      const e = { ...s, sentText: '', el: null, inHistory: true };
       if (e.state === 'sent') e.state = 'live'; // 重載時把送出中的重新排隊
       if (e.state === 'done') e.zhFor = e.x;    // 已定稿的譯文對應最終原文，避免重翻
       if (e.s) knownSpeakers.add(e.s);          // 歷史講者名 → 名字塊辨識依據

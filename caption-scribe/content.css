@@ -87,6 +87,20 @@
   line-height: 1.45;
 }
 
+/* 即時區：進行中的字幕固定顯示在這裡（保留空間，避免歷史列表跳動），定稿後才移入上方歷史區 */
+#cs-interim {
+  min-height: 84px;
+  padding: 6px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+#cs-interim:empty::after {
+  content: '…';
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+}
+#cs-interim .cs-entry { margin-bottom: 0; }
+
 #cs-status {
   font-size: 11px;
   color: #ffe08a;
