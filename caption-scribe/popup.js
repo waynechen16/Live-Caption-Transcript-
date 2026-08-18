@@ -14,11 +14,13 @@ async function saveSettings() {
   data.cs_translate = $('translateOn').checked;
   data.recEnabled = $('recEnabled').checked;
   data.micEnabled = $('micEnabled').checked;
+  data.cs_skipFewEn = $('skipFewEn').checked;
   await chrome.storage.local.set(data);
 }
 for (const f of FIELDS) $(f).addEventListener('change', saveSettings);
 $('translateOn').addEventListener('change', saveSettings);
 $('recEnabled').addEventListener('change', saveSettings);
+$('skipFewEn').addEventListener('change', saveSettings);
 
 // 麥克風開關：勾選時若尚未授權，開授權分頁完成一次授權（移植自參考版）
 $('micEnabled').addEventListener('change', async () => {
@@ -61,11 +63,12 @@ async function ensureContent() {
 
 async function init() {
   $('ver').textContent = 'v' + chrome.runtime.getManifest().version;
-  const saved = await chrome.storage.local.get([...FIELDS, 'cs_translate', 'recEnabled', 'micEnabled']);
+  const saved = await chrome.storage.local.get([...FIELDS, 'cs_translate', 'recEnabled', 'micEnabled', 'cs_skipFewEn']);
   for (const f of FIELDS) if (saved[f]) $(f).value = saved[f];
   $('translateOn').checked = saved.cs_translate !== false;   // 預設開
   $('recEnabled').checked = !!saved.recEnabled;
   $('micEnabled').checked = !!saved.micEnabled;
+  $('skipFewEn').checked = saved.cs_skipFewEn !== false;     // 預設開
 
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
