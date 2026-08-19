@@ -428,6 +428,34 @@
     }
   }
 
+  // 前綴＋後綴重合率（0~1）：快速估兩段文字的相似度
+  function textSimilarity(a, b) {
+    if (a === b) return 1;
+    const la = a.length, lb = b.length;
+    const minL = Math.min(la, lb);
+    let p = 0;
+    while (p < minL && a[p] === b[p]) p++;
+    let s = 0;
+    while (s < minL - p && a[la - 1 - s] === b[lb - 1 - s]) s++;
+    return (p + s) / Math.max(la, lb);
+  }
+
+  // 未知節點 → 在最近 12 條記錄中找歸屬：
+  //   完全相同（且長度 ≥6，或就是最後一條）→ 同一句
+  //   相似度 ≥0.85 且雙方長度 ≥10 → 同一句的修正版
+  // 短句（「好。」「Mm-hmm.」）不跨條合併——重複說的話應保留為獨立條目
+  function findRecentMatch(it) {
+    const from = Math.max(0, entries.length - 12);
+    for (let i = entries.length - 1; i >= from; i--) {
+      const e = entries[i];
+      if (it.speaker && e.s && it.speaker !== e.s) continue;
+      const isLast = i === entries.length - 1;
+      if (e.x === it.text && (isLast || it.text.length >= 6)) return e;
+      if (it.text.length >= 10 && e.x.length >= 10 && textSimilarity(e.x, it.text) >= 0.85) return e;
+    }
+    return null;
+  }
+
   function scan() {
     let items;
     try { items = collectItems(); } catch { return; }
@@ -442,6 +470,16 @@
       if (knownId !== undefined) {
         const e = entryById(knownId);
         if (e) touch(e, it.text, it.speaker);
+        continue;
+      }
+      // Teams 有時會重建整段字幕清單的 DOM（節點全換新、舊句文字可能微調）——
+      // 往回搜尋最近的記錄：完全相同的直接歸戶、高相似度的視為同句修正就地更新
+      const cand = findRecentMatch(it);
+      if (cand) {
+        nodeMap.set(it.node, cand.id);
+        if (it.text !== cand.x && it.text.length >= cand.x.length) {
+          touch(cand, it.text, it.speaker);      // 修正版較長或等長 → 更新（會重新翻譯）
+        }
         continue;
       }
       const last = entries.length ? entries[entries.length - 1] : null;
